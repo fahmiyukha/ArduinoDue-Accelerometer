@@ -88,31 +88,14 @@
 //MPU6050DMP
 MPU6050 mpu;
 
-//ESC-Motor
-Servo motor1, motor2, motor3, motor4;
-
-//Magneto
-HMC5883L compass;
 //Magdwick
 Madgwick filter;
 
 //Kalman
 Kalman kalmanX; // Create the Kalman instances
 Kalman kalmanY;
-
-//GPS
-struct NAV_POSLLH {
-	unsigned char cls;
-	unsigned char id;
-	unsigned short len;
-	unsigned long iTOW;
-	long lon;
-	long lat;
-	long height;
-	long hMSL;
-	unsigned long hAcc;
-	unsigned long vAcc;
-};
+Kalman kalmanAccX;
+Kalman kalmanAccY;
 
 struct dataF {
 	float now;
@@ -155,91 +138,19 @@ struct accelRaw {
 };
 
 accelRaw acc,tim;
-NAV_POSLLH posllh;
 /**********************************REFERENCE**********************************/
 
 /**********************************VARIABLE***********************************/
-/*
+
 //MPU6050DMP
-bool blinkState = false;
 
-// MPU control/status vars
-bool dmpReady = false;  // set true if DMP init was successful
-uint8_t mpuIntStatus;   // holds actual interrupt status byte from MPU
-uint8_t devStatus;      // return status after each device operation (0 = success, !0 = error)
-uint16_t packetSize;    // expected DMP packet size (default is 42 bytes)
-uint16_t fifoCount;     // count of all bytes currently in FIFO
-uint8_t fifoBuffer[64]; // FIFO storage buffer
-
-// orientation/motion vars
-Quaternion q;           // [w, x, y, z]         quaternion container
-VectorInt16 aa;         // [x, y, z]            accel sensor measurements
-VectorInt16 aaReal;     // [x, y, z]            gravity-free accel sensor measurements
-VectorInt16 aaWorld;    // [x, y, z]            world-frame accel sensor measurements
-VectorFloat gravity;    // [x, y, z]            gravity vector
-float euler[3];         // [psi, theta, phi]    Euler angle container
-float ypr[3];           // [yaw, pitch, roll]   yaw/pitch/roll container and gravity vector
-*/
 dataF yaw;
 dataF pitch,pitchKal;
 dataF roll,rollKal;
 
-volatile bool mpuInterrupt = false;     // indicates whether MPU interrupt pin has gone high
-
-//int16_t ax, ay, az;
-//int16_t gx, gy, gz;
-
-
-//motor
-uint16_t pwmMotor[4];
-
-//Magneto
-int16_t mx, my, mz;
-float kompas;
-float degrees;
-float heading;
-float frontHeading;
-boolean active;
-
-//GPS
-const unsigned char UBX_HEADER[] = { 0xB5, 0x62 };
-bool GPSDone = false;
-bool GPSState = false;
-
 //Telemetry
 unsigned long timerPrintOut;
-
-//TestMotor
-char data;
-int val = 1000;
 int status = 0;
-
-//Kendali
-const double AInv[4][4] = {
-	{ -290903.6748, 2461167.149, -2461167.149, 72726003.33 },
-	{ -290903.6748, 2461167.149, 2461167.149, -72726003.33 },
-	{ -290903.6748, -2461167.149, 2461167.149, 72726003.33 },
-	{ -290903.6748, -2461167.149, -2461167.149, -72726003.33 }
-};
-
-float kRoll = 3.18, gRoll = 1.6; //0.34 0.16
-float kPitch = 3.13, gPitch = 1.6; //0.36 0.16
-float kYaw = 4, gYaw = 1.04; // 0.27 1.76
-
-double u1, u2, u3, u4;
-double w0, w1, w2, w3, w4;
-
-double constM1 = 0.7066;
-double constM2 = 0.7344;
-double constM3 = 0.7161;
-double constM4 = 0.6998;
-
-//Remote
-int remotePin[9] = { CH1_PIN, CH2_PIN, CH3_PIN, CH4_PIN, CH5_PIN, CH6_PIN, CH7_PIN, CH8_PIN, CH9_PIN };
-long remoteTimer[9], remoteSignal[9];
-int remote[9];
-int remoteIn[4];
-bool motorOn = false;
 
 //Magdwick
 unsigned long microsPerReading, microsPrevious;
@@ -267,9 +178,7 @@ uint32_t timer;
 
 void setup()
 {
-	setupTele();
-	//setupIMU();
-	//Scheduler.startLoop(loop2);
+	Serial.begin(115200);
 	setupAHRS(); 
 	setupKalman();
 	pinMode(13, OUTPUT);
@@ -293,7 +202,12 @@ void loop()
 	if ((millis() - timerPrintOut) > 100)
 	{
 		timerPrintOut = millis();
-		teleSend();
+		Serial.print(" |P: ");		Serial.print(pitch.now);//Print Pitch Madgwick AHRS
+		Serial.print(" R: ");		Serial.print(roll.now);//Print Roll Madgwick AHRS
+		Serial.print(" |KP: ");		Serial.print(kalAngleY);//Print Pitch Kalman
+		Serial.print(" KR: ");		Serial.print(kalAngleX);//Print Roll Kalman
+		Serial.print(" | ");		Serial.print(acc.deltaTime);
+		Serial.print(" | ");		Serial.print(tim.deltaTime);
 	}
 
 
