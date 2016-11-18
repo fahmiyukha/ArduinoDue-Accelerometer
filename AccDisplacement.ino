@@ -46,6 +46,8 @@ Madgwick filter;
 //Kalman
 Kalman kalmanX; // Create the Kalman instances
 Kalman kalmanY;
+Kalman kalmanAccX;
+Kalman kalmanAccY;
 
 struct dataF {
 	float now;

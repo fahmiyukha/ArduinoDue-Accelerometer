@@ -99,6 +99,9 @@ void setupKalman(){
 	kalmanX.setAngle(roll.now); // Set starting angle
 	kalmanY.setAngle(pitch.now);
 
+	kalmanAccX.setAngle(ax); // Set starting angle
+	kalmanAccY.setAngle(ay);
+
 	timer = micros();
 }
 
@@ -109,6 +112,9 @@ void kalmanFilter(){
 
 	double gyroXrate = gix / 131.0; // Convert to deg/s
 	double gyroYrate = giy / 131.0; // Convert to deg/s
+	double accelXrate = ax;
+	double accelYrate = ay;
+
 
 #ifdef RESTRICT_PITCH
 	// This fixes the transition problem when the accelerometer angle jumps between -180 and 180 degrees
@@ -135,5 +141,8 @@ void kalmanFilter(){
 		gyroXrate = -gyroXrate; // Invert rate, so it fits the restriced accelerometer reading
 	kalAngleX = kalmanX.getAngle(roll.now, gyroXrate, dt); // Calculate the angle using a Kalman filter
 #endif
+
+	//accX = kalmanAccX.getAngle()
+
 }
 
