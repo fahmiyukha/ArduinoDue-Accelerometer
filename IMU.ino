@@ -1,9 +1,8 @@
-
 void setupAHRS(){
 
 #if I2CDEV_IMPLEMENTATION == I2CDEV_ARDUINO_WIRE
 	Wire.begin();
-	Wire.setClock(400000);
+	Wire.setClock(400000);//I2C Clock Speed
 	//TWBR = 24; // 400kHz I2C clock (200kHz if CPU is 8MHz). Comment this line if having compilation difficulties with TWBR.
 #elif I2CDEV_IMPLEMENTATION == I2CDEV_BUILTIN_FASTWIRE
 	Fastwire::setup(400, true);
@@ -15,20 +14,15 @@ void setupAHRS(){
 	mpu.setZGyroOffset(32);
 	mpu.setZAccelOffset(800);
 
+	mpu.setFullScaleGyroRange(MPU6050_GYRO_FS_1000);
+	mpu.setFullScaleAccelRange(MPU6050_ACCEL_FS_8);
+
+
 	acc.timer.now = micros();
-	acc.accX.now = 0;
-	acc.accY.now = 0;
-	acc.accZ.now = 0;
-
-	acc.velX.now = 0;
-	acc.velY.now = 0;
-	acc.velZ.now = 0;
-
-	acc.disX.now = 0;
-	acc.disY.now = 0;
-	acc.disZ.now = 0;
+	tim.timer.now = micros();
 
 	filter.begin(1000);
+
 	// initialize variables to pace updates to correct rate
 	microsPerReading = 1000000 / 1000;
 	microsPrevious = micros();
@@ -38,49 +32,47 @@ void setupAHRS(){
 void readAHRS(){
 
 	// check if it's time to read data and update the filter
-	microsNow = micros();
-	
-	if (microsNow - microsPrevious >= microsPerReading) {
+	//microsNow = micros();
 
-		tim.timer.before = tim.timer.now;
-		tim.timer.now = micros();
+	//if (microsNow - microsPrevious >= microsPerReading) {
 
-		tim.deltaTime = abs(tim.timer.now - tim.timer.before);
-		tim.deltaSec = (double)(tim.deltaTime / 1000000.0);
+	tim.timer.before = tim.timer.now;
+	tim.timer.now = micros();
 
-		// read raw data from CurieIMU
-		mpu.getMotion6(&aix, &aiy, &aiz, &gix, &giy, &giz);
-		//CurieIMU.readMotionSensor(aix, aiy, aiz, gix, giy, giz);
+	tim.deltaTime = abs(tim.timer.now - tim.timer.before);//Calc Delta getDegreeAHRS
+	tim.deltaSec = (double)(tim.deltaTime / 1000000.0);
 
-		// convert from raw data to gravity and degrees/second units
-		ax = convertRawAcceleration(aix);
-		ay = convertRawAcceleration(aiy);
-		az = convertRawAcceleration(aiz);
-		gx = convertRawGyro(gix);
-		gy = convertRawGyro(giy);
-		gz = convertRawGyro(giz);
+	// read raw data from MPU6050
+	mpu.getMotion6(&aix, &aiy, &aiz, &gix, &giy, &giz);
 
-		// update the filter, which computes orientation
-		filter.updateIMU(gx, gy, gz, ax, ay, az);
+	// convert from raw data to gravity and degrees/second units
+	ax = convertRawAcceleration(aix);
+	ay = convertRawAcceleration(aiy);
+	az = convertRawAcceleration(aiz);
+	gx = convertRawGyro(gix);
+	gy = convertRawGyro(giy);
+	gz = convertRawGyro(giz);
 
-		// print the heading, pitch and roll
-		roll.now = filter.getRoll();
-		pitch.now = filter.getPitch();
-		yaw.now = filter.getYaw();
+	// update the filter, which computes orientation
+	filter.updateIMU(gx, gy, gz, ax, ay, az);
 
-		
-		/*
-		Serial.print("Orientation: ");
-		Serial.print(yaw.now);
-		Serial.print(" ");
-		Serial.print(pitch.now);
-		Serial.print(" ");
-		Serial.println(roll.now);
-		*/
+	// print the heading, pitch and roll
+	roll.now = filter.getRoll();
+	pitch.now = filter.getPitch();
+	yaw.now = filter.getYaw();
 
-		// increment previous time, so we keep proper pace
-		microsPrevious = microsPrevious + microsPerReading; //microsPrevious + microsPerReading;
-	}
+	/*
+	Serial.print("Orientation: ");
+	Serial.print(yaw.now);
+	Serial.print(" ");
+	Serial.print(pitch.now);
+	Serial.print(" ");
+	Serial.println(roll.now);
+	*/
+
+	// increment previous time, so we keep proper pace
+	microsPrevious = microsPrevious + microsPerReading;
+	//}
 
 }
 
@@ -89,7 +81,7 @@ float convertRawAcceleration(int aRaw) {
 	// -2g maps to a raw value of -32768
 	// +2g maps to a raw value of 32767
 
-	float a = (aRaw * 2.0) / 32768.0;
+	float a = (aRaw * 8.0) / 32768.0;//change it if you change setRange accel MPU6050
 	return a;
 }
 
@@ -98,7 +90,7 @@ float convertRawGyro(int gRaw) {
 	// -250 maps to a raw value of -32768
 	// +250 maps to a raw value of 32767
 
-	float g = (gRaw * 250.0) / 32768.0;
+	float g = (gRaw * 1000.0) / 32768.0;//change it if you change setRange gyro MPU6050
 	return g;
 }
 
@@ -111,15 +103,12 @@ void setupKalman(){
 }
 
 void kalmanFilter(){
+	kalTim = (micros() - timer);
 	double dt = (double)(micros() - timer) / 1000000.0; // Calculate delta time
 	timer = micros();
 
-	double gyroXrate = gx;//gix / 131.0; // Convert to deg/s
-	double gyroYrate = gy;// giy / 131.0; // Convert to deg/s
-
-	double accelXrate = 0;// gix / 131.0; // Convert to deg/s
-	double accelYrate = 0;// giy / 131.0; // Convert to deg/s
-
+	double gyroXrate = gix / 131.0; // Convert to deg/s
+	double gyroYrate = giy / 131.0; // Convert to deg/s
 
 #ifdef RESTRICT_PITCH
 	// This fixes the transition problem when the accelerometer angle jumps between -180 and 180 degrees
